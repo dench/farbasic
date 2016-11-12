@@ -15,15 +15,16 @@ const char* host = "dench.ddns.net";
 int port = 1883;
 
 // Camera motor
-const int pinA1 = 4; // black 4
-const int pinA2 = 2; // brown 2 
-const int pinB1 = 0; // yellow 0
-const int pinB2 = 15; // blue 15
+const int pinA1 = 5; // black 5
+const int pinA2 = 0; // brown 0 
+const int pinB1 = 4; // yellow 4
+const int pinB2 = 2; // blue 2
+
 const float koef = 15.357; // 15.357
 float pos = 0;
 int flag = 0;
 bool flag2 = false;
-bool flag3 = false;
+int flag3 = 0;
 AccelStepper stepper(4, pinA1, pinA2, pinB1, pinB2);
 
 // Main motor
@@ -43,8 +44,8 @@ void callback(char* topic, byte* payload, unsigned int length)
     timer.detach();
     
     int val = payload[2] - '0';
-    int l = map(constrain(val, 0, 4), 0, 4, 1023, 0);
-    int r = map(constrain(val, 4, 8), 4, 8, 0, 1023);
+    int l = map(constrain(val, 0, 4), 0, 4, 870, 0);
+    int r = map(constrain(val, 4, 8), 4, 8, 0, 870);
     analogWrite(LPWM1, l);
     analogWrite(RPWM1, r);
 
@@ -133,13 +134,16 @@ void loop()
   stepper.run();
   if (!flag) {
     if (!stepper.distanceToGo() && !flag2) {
-      if (pos == 0) {
-        if (flag3) {
-          pos = -0.1;
-        } else {
-          pos = 2.9*koef;
+      if (pos == 0 || pos == 1*koef) {
+        if (flag3 < 0) {
+          pos = -1*koef;
         }
-        stepper.moveTo(pos);
+        Serial.print("pos=");
+        Serial.println(pos);
+        flag3 = 0;
+        stepper.move(pos);
+        flag2 = false;
+        pos = 0.1;
       } else {
         flag2 = true;
         Serial.println("distanceToGo");
@@ -150,7 +154,6 @@ void loop()
     if (!client.connected()) {
       flag = 0;
       flag2 = false;
-      flag3 = false;
       reconnect();
     }
     client.loop();
@@ -162,18 +165,18 @@ void camCalibrate() {
     stepper.enableOutputs();
     Serial.println("enableOutputs");
     stepper.move(285*koef);
-    flag3 = 1;
     flag = 1;
     timer.attach(10, camCalibrate);
   } else if (flag == 1) {
-    stepper.move(-147*koef);
-    flag3 = 0;
+    stepper.move(-138*koef);
     flag = 2;
     pos = 1;
     timer.attach(5, camCalibrate);
   } else if (flag == 2) {
     flag = 0;
+    flag3 = 0;
     stepper.setCurrentPosition(0);
+    Serial.println("setCurrentPosition=0");
     stepper.disableOutputs();
     Serial.println("disableOutputs");
     timer.detach();
@@ -185,25 +188,40 @@ void camMove(int n) {
   Serial.println("enableOutputs");
   if (n == 1) {
     pos = -133*koef;
-    flag3 = 0;
+    if (flag3 > -3) {
+      flag3 = -3;
+    }
   } else if (n == 2) {
     pos = -90*koef;
-    flag3 = 0;
+    if (flag3 > -2) {
+      flag3 = -2;
+    }
   } else if (n == 3) {
     pos = -35*koef;
-    flag3 = 0;
+    if (flag3 > -1) {
+      flag3 = -1;
+    }
   } else if (n == 4) {
     pos = 0;
+    if (flag3 < 0) {
+      pos = 1*koef;
+    }
   } else if (n == 5) {
     pos = 35*koef;
-    flag3 = 1;
+    if (flag3 < 1) {
+      flag3 = 1;
+    }
   } else if (n == 6) {
     pos = 90*koef;
-    flag3 = 1;
+    if (flag3 < 2) {
+      flag3 = 2;
+    }
   } else if (n == 7) {
-    pos = 140*koef;
-    flag3 = 1;
+    pos = 136*koef;
+    if (flag3 < 3) {
+      flag3 = 3;
+    }
   }
-  stepper.moveTo(pos);
   flag2 = false;
+  stepper.moveTo(pos);
 }
